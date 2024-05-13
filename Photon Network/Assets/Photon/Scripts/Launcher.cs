@@ -8,6 +8,8 @@ using TMPro;
 
 public class Launcher : MonoBehaviourPunCallbacks
 {
+    public static Launcher Instance;
+
     // MonoBehaviourPunCallbacks : Photon Netkwork 상태에 따라 CallBack Interface함수를
     // 자동으로 등록하고 사용할 수 있게 해주는 클래스
     [Header("메인")]
@@ -27,15 +29,39 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     [Header("방 검색")]
     public GameObject roomBroswerPanel;
-    public TMP_InputField roomBroswerNameText;
+    //public TMP_InputField roomBroswerNameText;
+
+    [Header("방 에러 패널")]
+    public GameObject errorPanel;    // 에러가 발생했을 때 활성화되는 오브젝트
+    public TMP_Text errorText;       // 에러에 해당하는 내용을 출력하는 변수
+
+    [Header("닉네임 생성 패널")]
+    public GameObject nickNamePanel;                      // 닉네임 생성 오브젝트
+    public TMP_InputField nickNameInput;                  // 닉네임 작성하는 공간
+    private bool hasSetNick = false;                      // 닉네임이 지정이 되어 있으면 반복을 피해주기 위한 Bool type 변수
+    private const string PLAYERNAMEKEY = "playerName";    // PlayerPrefs 사용. 유니티 제공하는 간단한 데이터 저장 방식
 
     [Header("Photon RoomInfo")]
     // 방을 생성했을 때 방의 이름을 데이터로 파싱하는 클래스 RoomButton
+    public RoomButtonInfo theRoomButtonInfo;
+    private List<RoomButtonInfo> roomButtonList = new List<RoomButtonInfo>();
     private List<TMP_Text> allPlayerNames = new List<TMP_Text>();
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+
+        SetResolution();
+    }
+
+    private void SetResolution() => Screen.SetResolution(960, 540, false);
 
     private void Start()
     {
-        
+        PhotonNetwork.OfflineMode = false;
     }
 
     private void Update()
@@ -48,6 +74,10 @@ public class Launcher : MonoBehaviourPunCallbacks
         menuButtons.SetActive(false);
         loadingPanel.SetActive(false);
         createRoomPanel.SetActive(false);
+        roomPanel.SetActive(false);
+        roomBroswerPanel.SetActive(false);
+        errorPanel.SetActive(false);
+        nickNamePanel.SetActive(false);
     }
 
     #region Photon Network Function
@@ -73,6 +103,8 @@ public class Launcher : MonoBehaviourPunCallbacks
         PhotonNetwork.JoinLobby();
 
         loadingText.text = "로비에 접속..";
+
+        PhotonNetwork.AutomaticallySyncScene = true; // Room Update 및 동기화 기능 허용
     }
 
     public void DisConnect() => PhotonNetwork.Disconnect();
@@ -85,6 +117,22 @@ public class Launcher : MonoBehaviourPunCallbacks
         menuButtons.SetActive(true);
 
         PhotonNetwork.NickName = Random.Range(0, 1000).ToString();
+
+        if (!hasSetNick)
+        {
+            CloseMenus();
+            nickNamePanel.SetActive(true);
+
+            // PlayerPrefs로 이미 작성한 닉네임 불러오는 코드
+            if (PlayerPrefs.HasKey(PLAYERNAMEKEY))
+            {
+                nickNameInput.text = PlayerPrefs.GetString(PLAYERNAMEKEY);
+            }
+        }
+        else
+        {
+            PhotonNetwork.NickName = PlayerPrefs.GetString(PLAYERNAMEKEY);  // PlayerPrefs
+        }
     }
 
     public void CreateRoomPanel()
@@ -116,6 +164,20 @@ public class Launcher : MonoBehaviourPunCallbacks
         }
     }
 
+    public override void OnCreateRoomFailed(short returnCode, string message)
+    {
+        CloseMenus();                                        // 다른 메뉴 전부 닫기
+        errorText.text = $"방 생성에 실패함 : {message}";      // 에러 내용 변수에 입력
+        errorPanel.SetActive(true);                          // 에러 오브젝트 활성화
+    }
+
+    public override void OnJoinRandomFailed(short returnCode, string message)
+    {
+        CloseMenus();                                           // 다른 메뉴 전부 닫기
+        errorText.text = $"빠른 참여에 실패함 : {message}";      // 에러 내용 변수에 입력
+        errorPanel.SetActive(true);                             // 에러 오브젝트 활성화
+    }
+
     public override void OnJoinedRoom()
     {
         CloseMenus();
@@ -129,20 +191,84 @@ public class Launcher : MonoBehaviourPunCallbacks
         playerNickNameText.text = PhotonNetwork.NickName;
     }
 
-    public void JoinRoom()
+    public void JoinRoom(RoomInfo info)
     {
-        //PhotonNetwork.JoinRoom(roomInfo.Name);
-        PhotonNetwork.JoinRoom(roomBroswerNameText.text);
-
+        PhotonNetwork.JoinRoom(info.Name);
         CloseMenus();
         loadingText.text = "방 접속 중...";
+        loadingPanel.SetActive(true);       
+    }
+
+    private void ShowListAllPlayer()
+    {
+        // allPlayernames에 들어있는 모든 플레이어를 전부 방에 보여주겠다.
+
+        foreach(var player in allPlayerNames)
+        {
+            Destroy(player.gameObject);
+        }
+        allPlayerNames.Clear();
+
+        Player[] players = PhotonNetwork.PlayerList;
+        for(int i = 0; i<players.Length; i++)
+        {
+            TMP_Text newPlayerNickName = Instantiate(playerNickNameText,
+            playerNickNameText.transform.parent);
+            newPlayerNickName.text = players[i].NickName;
+            newPlayerNickName.gameObject.SetActive(true);
+
+            allPlayerNames.Add(newPlayerNickName);
+        }
+    }
+
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        TMP_Text newPlayerNickName = Instantiate(playerNickNameText,
+            playerNickNameText.transform.parent);
+        newPlayerNickName.text = newPlayer.NickName;
+        newPlayerNickName.gameObject.SetActive(true);
+
+        allPlayerNames.Add(newPlayerNickName);
+    }
+
+    public override void OnPlayerLeftRoom(Player otherPlayer)
+    {
+        ShowListAllPlayer();
+    }
+
+    public void ButtonLeaveRoom()
+    {
+        PhotonNetwork.LeaveRoom();
+        CloseMenus();
+        loadingText.text = "방을 나가는 중...";
         loadingPanel.SetActive(true);
-        
+    }
+
+    public override void OnLeftRoom()
+    {
+        ButtonReturnLobby();
     }
 
     public override void OnRoomListUpdate(List<RoomInfo> roomList)
     {
+        foreach(var roomButton in roomButtonList)
+        {
+            Destroy(roomButton.gameObject);
+        }
+        roomButtonList.Clear();
 
+        for(int i=0; i < roomList.Count; i++)
+        {
+            if (roomList[i].PlayerCount != roomList[i].MaxPlayers && !roomList[i].RemovedFromList)
+            {
+                RoomButtonInfo newButton = Instantiate(theRoomButtonInfo, 
+                    theRoomButtonInfo.transform.parent);  // Button을 복사해서, Content 오브젝트 저장
+                newButton.SetButtonInfo(roomList[i]);
+                newButton.gameObject.SetActive(true);
+
+                roomButtonList.Add(newButton);
+            }
+        }
     }
 
     public void OpenRoomBroswer()
@@ -160,7 +286,45 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     #endregion
 
+    private void JoinOrCreateRoom()
+    {
+        string roomName = $"No.{Random.Range(0, 1000).ToString()}";
+        PhotonNetwork.JoinOrCreateRoom(roomName, new RoomOptions { MaxPlayers = 8 }, null);
+    }
+
     #region Button
+
+    public void ButtonJoinRandomRoom()
+    {
+        // 서버 내에 방이 한개라도 존재하면.. 해당 방에 랜덤으로 참여한다.
+        if(PhotonNetwork.CountOfRooms <= 0)
+           JoinOrCreateRoom();
+        // 서버 내에 방이 없다면... 내가 방을 만든다.
+        else   
+            PhotonNetwork.JoinRandomRoom();
+    
+    }
+
+    public void ButtonSetNickName()
+    {
+        // Nickname 인풋필드가 비어있는지 확인
+        if (!string.IsNullOrEmpty(nickNameInput.text))
+        {
+            PhotonNetwork.NickName = nickNameInput.text;
+            // Playerprefs 닉네임을 저장해두었다가 사용하는 코드
+            PlayerPrefs.SetString(PLAYERNAMEKEY, nickNameInput.text);
+            CloseMenus();
+            menuButtons.SetActive(true);
+            hasSetNick = true;
+        } 
+    }
+
+    public void ButtonReturnLobby()
+    {
+        CloseMenus();
+        menuButtons.SetActive(true);
+    }
+
     public void QuitGame()
     {
 #if UNITY_EDITOR
