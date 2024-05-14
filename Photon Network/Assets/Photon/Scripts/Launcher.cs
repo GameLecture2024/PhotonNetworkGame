@@ -4,6 +4,7 @@ using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 
 public class Launcher : MonoBehaviourPunCallbacks
@@ -24,6 +25,7 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     [Header("방 정보")]
     public GameObject roomPanel;
+    public GameObject startButton;              // 방장만 보이도록 설정
     public TMP_Text roomNameText;
     public TMP_Text playerNickNameText;
 
@@ -46,6 +48,11 @@ public class Launcher : MonoBehaviourPunCallbacks
     public RoomButtonInfo theRoomButtonInfo;
     private List<RoomButtonInfo> roomButtonList = new List<RoomButtonInfo>();
     private List<TMP_Text> allPlayerNames = new List<TMP_Text>();
+
+    [Header("Photon Chat")]
+    public TMP_Text[] ChatText;
+    public TMP_InputField ChatInput;
+    public PhotonView PV;
 
     private void Awake()
     {
@@ -188,7 +195,13 @@ public class Launcher : MonoBehaviourPunCallbacks
         roomNameText.text = $"방 제목 : {PhotonNetwork.CurrentRoom.Name}";
         // 방에 접속한 Client NickName 표시 되는 기능 Nick Name 표시할 LayOut 
 
-        playerNickNameText.text = PhotonNetwork.NickName;
+        ShowListAllPlayer();
+        ChatClear();
+
+        if (PhotonNetwork.IsMasterClient) // 내가 방장이라면
+            startButton.SetActive(true);
+        else
+            startButton.SetActive(false);
     }
 
     public void JoinRoom(RoomInfo info)
@@ -229,11 +242,15 @@ public class Launcher : MonoBehaviourPunCallbacks
         newPlayerNickName.gameObject.SetActive(true);
 
         allPlayerNames.Add(newPlayerNickName);
+        PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=yellow>" + newPlayer.NickName
+            + "님이 참가하셨습니다</color>");
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         ShowListAllPlayer();
+        PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=red>" + otherPlayer.NickName
+           + "님이 퇴장하셨습니다</color>");
     }
 
     public void ButtonLeaveRoom()
@@ -256,6 +273,7 @@ public class Launcher : MonoBehaviourPunCallbacks
             Destroy(roomButton.gameObject);
         }
         roomButtonList.Clear();
+        theRoomButtonInfo.gameObject.SetActive(false);
 
         for(int i=0; i < roomList.Count; i++)
         {
@@ -268,6 +286,17 @@ public class Launcher : MonoBehaviourPunCallbacks
 
                 roomButtonList.Add(newButton);
             }
+        }
+    }
+
+    public override void OnMasterClientSwitched(Player newMasterClient)
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            if (PhotonNetwork.IsMasterClient)
+                startButton.SetActive(true);
+            else
+                startButton.SetActive(false);
         }
     }
 
@@ -293,6 +322,11 @@ public class Launcher : MonoBehaviourPunCallbacks
     }
 
     #region Button
+
+    public void ButtonStartGame()
+    {
+        SceneManager.LoadScene("Photon MainGame");
+    }
 
     public void ButtonJoinRandomRoom()
     {
@@ -333,5 +367,54 @@ public class Launcher : MonoBehaviourPunCallbacks
 
         Application.Quit(); // 게임을 빌드 해야지만 테스트를 할 수 있다.
     }
+    #endregion
+
+    #region Photon Chat
+    private void ChatClear()  // 방에 들어갔을 때 채팅 창 로그가 비어있는 상태로 접속
+    {
+        ChatInput.text = string.Empty;
+
+        for(int i=0; i < ChatText.Length; i++)
+        {
+            ChatText[i].text = string.Empty;
+        }
+    }
+
+    public void Send()
+    {
+        string message = $"{PhotonNetwork.NickName} : {ChatInput.text}";
+        PV.RPC(nameof(ChatRPC), RpcTarget.All, message);
+        ChatInput.text = string.Empty;
+    }
+
+    [PunRPC]
+    private void ChatRPC(string message)
+    {
+        bool isChatFull = false; 
+       // 10개의 Text..  공간을 전부 사용하지 않았을 때.. 배열 Text = message
+       for(int i=0; i< ChatText.Length; i++)
+        {
+            if (ChatText[i].text == string.Empty)
+            {
+                ChatText[i].text = message;
+                isChatFull = true;
+                break;
+            }
+        }
+
+        if (!isChatFull)
+        {
+            // 0번째 요소로 1칸씩 밀어낸다.
+            for(int i = 1; i < ChatText.Length; i++) // int i = 1.. 배열의 2번째 요소 부터 끝까지..
+            {
+                ChatText[i - 1].text = ChatText[i].text;
+            } 
+
+            ChatText[ChatText.Length - 1].text = message;
+        }
+
+       // Text 공간이 가득 찼을 때.. 밑에서 부터 한 칸씩 밀어낸다.
+    }
+
     #endregion
 }
