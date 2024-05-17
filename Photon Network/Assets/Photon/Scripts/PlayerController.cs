@@ -31,7 +31,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     [Header("photon Component")]
     PhotonView PV;                                   // PV객체를 이용하여 인스턴스된 오브젝트의 소유권 확인
-    public GameObject forward;
+    public GameObject hiddenObject;                  // 1인칭 시점에서 숨기고 싶은 오브젝트
 
     private void Awake()
     {
@@ -49,11 +49,13 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (!photonView.IsMine)  // 내 플레이어가 아니면 카메라를 비활성화
         {
             cam.gameObject.SetActive(false);
-            forward.layer = 0;
+            if(hiddenObject!= null)
+                hiddenObject.layer = 0;
         }
     }
 
-    // Update is called once per frame
+    // Update is called once per frame 
+    // 컴퓨터 마다 Frame을 생성하는 성능이 다르기 때문에 Time.deltaTime 컴퓨터간의 같은 시간에 같은 횟수를 보장해주었다.
     void Update()
     {
         if (photonView.IsMine)
@@ -63,11 +65,18 @@ public class PlayerController : MonoBehaviourPunCallbacks
             // 플레이어의 인풋 
             HandleInput();
             HandleView();
-            // Rigidbody AddForce(관성의 힘을 제어해주는 함수) - moveSpeed 만큼만 움직일
-            Move();
-            LimitSpeed();
+
+            PlayerAttack();
         }
     }
+
+    private void FixedUpdate()
+    {
+        // Rigidbody AddForce(관성의 힘을 제어해주는 함수) - moveSpeed 만큼만 움직일
+        Move();
+        LimitSpeed();
+    }
+
 
     private void HandleInput()
     {
@@ -140,6 +149,26 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        Gizmos.DrawLine(transform.position, -transform.up * groundCheckDistance);
+        Gizmos.DrawLine(transform.position, transform.position + (-transform.up * groundCheckDistance));
+        // 에디터 실행해서.  DrawLine 땅에 닿는 길이를 설정.
     }
+
+    #region Player Attack
+
+    private void PlayerAttack()
+    {
+        Shoot();
+    }
+
+    private void Shoot()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, 100f);
+
+            Debug.Log($"충돌한 오브젝트의 이름 {hit.collider.gameObject.name}");
+        }
+    }
+
+    #endregion
 }
