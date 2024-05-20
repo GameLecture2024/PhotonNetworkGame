@@ -49,9 +49,14 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (!photonView.IsMine)  // 내 플레이어가 아니면 카메라를 비활성화
         {
             cam.gameObject.SetActive(false);
-            if(hiddenObject!= null)
+            if (hiddenObject != null)
                 hiddenObject.layer = 0;
         }
+    }
+
+    private void Start()
+    {
+        InitalizeAttackInfo();
     }
 
     // Update is called once per frame 
@@ -101,7 +106,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
         verticalRotation += mouseInput.y;
         verticalRotation = Mathf.Clamp(verticalRotation, -60f, 60);
 
-        if(inverseMouse)
+        if (inverseMouse)
             viewPoint.rotation = Quaternion.Euler(verticalRotation, transform.eulerAngles.y, transform.eulerAngles.z);
         else
             viewPoint.rotation = Quaternion.Euler(-verticalRotation, transform.eulerAngles.y, transform.eulerAngles.z);
@@ -113,7 +118,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
         // Rigidbody.velocity 현재 캐릭터의 속도, 방향을 즉시 변경시킨다. 비현실적인 움직임으로 보일 수 있다.
         Vector3 curretSpeed = new Vector3(rigidbody.velocity.x, 0, rigidbody.velocity.z);
 
-        if(curretSpeed.magnitude > moveSpeed)
+        if (curretSpeed.magnitude > moveSpeed)
         {
             Vector3 limitSpeed = curretSpeed.normalized * moveSpeed;
             rigidbody.velocity = new Vector3(limitSpeed.x, rigidbody.velocity.y, limitSpeed.z);
@@ -128,7 +133,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void ButtonJump()
     {
         // 조건문 :  키를 입력 + 현재 상태 땅인지 아닌지
-        if(Input.GetKeyDown(JumpkeyCode) && isGrounded)
+        if (Input.GetKeyDown(JumpkeyCode) && isGrounded)
         {
             Jump();
         }
@@ -146,29 +151,67 @@ public class PlayerController : MonoBehaviourPunCallbacks
         isGrounded = Physics.Raycast(transform.position, -transform.up, groundCheckDistance, groundLayer);
     }
 
-    private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(transform.position, transform.position + (-transform.up * groundCheckDistance));
-        // 에디터 실행해서.  DrawLine 땅에 닿는 길이를 설정.
-    }
-
     #region Player Attack
+    public GameObject bulletImpact;      // 플레이어의 공격의 피격 효과 인스턴스
+    public float shootDistance = 10f;    // 최대 사격 거리
+    public float fireCoolTime = 0.1f;
+    private float fireCounter;
 
+    // 플레이어의 입력 -> 로직 -> (조건 - Physics.Raycast)실제 효과 처리
+    // 공격했다는 사실
     private void PlayerAttack()
     {
-        Shoot();
+        InputAttack();
     }
 
-    private void Shoot()
+    private void InputAttack()
     {
-        if (Input.GetMouseButtonDown(0))
-        {
-            Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, 100f);
+        fireCounter -= Time.deltaTime;
 
-            Debug.Log($"충돌한 오브젝트의 이름 {hit.collider.gameObject.name}");
+        if (Input.GetMouseButtonDown(0))
+        {            
+            if(fireCounter <= 0)
+             Shoot();
         }
     }
 
+    private void InitalizeAttackInfo()
+    {
+        fireCounter = fireCoolTime;
+    }
+    // 들여 쓰기 핫 키 : 드래그 후 ctrl + K + D 
+    private void Shoot()
+    {
+        if(Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, shootDistance))
+        {
+            // Raycast가 Hit한 지점에 object가 생성된다.
+            // 생성된 각도... 
+            // 생성되는 위치가 오브젝트랑 겹쳐보이는 현상...
+            GameObject bulletObject = Instantiate(bulletImpact, hit.point + (hit.normal * 0.002f), Quaternion.LookRotation(hit.normal, Vector3.up));
+
+            // 일정 시간 후에 인스턴스한 오브젝트를 파괴한다.
+            Destroy(bulletObject, 0.5f);
+        }
+
+        Debug.Log($"충돌한 오브젝트의 이름 {hit.collider.gameObject.name}");            // raycasthit에 의해 충돌한 지점에 collider가 있으면 반환해주는 코드
+        Debug.Log($"충돌한 지점의 Vector3을 반환하다 : {hit.point}");                   // Raycast에 의해서 감지된 위치를 반환
+        Debug.Log($"카메라와 충돌한 지점 사이의 거리를 반환 : {hit.distance}");          //  두 벡터의 차이
+        Debug.Log($"충돌한 오브젝트의 법선(normal)을 반환 :{hit.normal} ");             //  cam - 충돌한 오브젝트 평면의 벡터 외적.. normal        
+
+        //  사격이 끝날 때, 사격 쿨타임을 리셋
+        fireCounter = fireCoolTime;
+    }
+
     #endregion
+    // Alt + 방향키(아래) : 코드를 움직일 수 있다.
+    private void OnDrawGizmos()
+    {
+        // 에디터 실행해서.  DrawLine 땅에 닿는 길이를 설정. 땅과 충돌을 하는지 보기 위한 Gizmo 함수
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, transform.position + (-transform.up * groundCheckDistance));
+        // 플레이어의 사격 범위를 파악하기 위한 Gizmo 함수
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(cam.transform.position, cam.transform.forward * shootDistance);
+    }
+
 }
