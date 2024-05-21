@@ -153,21 +153,61 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     #region Player Attack
     public GameObject bulletImpact;      // 플레이어의 공격의 피격 효과 인스턴스
+    public float bulletAliveTime = 2f;
     public float shootDistance = 10f;    // 최대 사격 거리
     public float fireCoolTime = 0.1f;
     private float fireCounter;
+    public bool isAutomatic;             // True일 때 연사 공격 가능. false일 때 단일 클릭으로 공격 가능
+
+    public Gun[] allGuns;
+    private int currentGunIndex = 0;
+    private MuzzleFlash currentMuzzle;
 
     // 플레이어의 입력 -> 로직 -> (조건 - Physics.Raycast)실제 효과 처리
     // 공격했다는 사실
     private void PlayerAttack()
     {
+        CoolDownFunction();
+        SelectGun();
         InputAttack();
+    }
+
+    private void CoolDownFunction()
+    {
+        fireCounter -= Time.deltaTime;
+    }
+
+    private void SelectGun() // 마우스 휠 버튼 이용해서 1 ~ N 등록된 무기를 변경 기능 
+                             // 1번 -> 1번 무기, 2번 -> 2번 무기, 3번 3번무기
+    {
+        if(Input.GetAxisRaw("Mouse ScrollWheel") > 0)
+        {
+            currentGunIndex++;
+
+            // 예외 사항.. 
+            // 배열의 길이보다 큰 경우  // 0 ~ n(Length - 1) 
+            if (currentGunIndex >= allGuns.Length)
+                currentGunIndex = 0;
+
+            // 총을 변경
+            SwitchGun();
+        }
+        else if(Input.GetAxisRaw("Mouse ScrollWheel") < 0)
+        {
+            currentGunIndex--;
+
+            // 예외 사항.. 
+            // 배열의 길이보다 큰 경우  // 0 ~ n(Length - 1) 
+            if (currentGunIndex < 0)
+                currentGunIndex = allGuns.Length - 1;
+
+            // 총을 변경
+            SwitchGun();
+        }
     }
 
     private void InputAttack()
     {
-        fireCounter -= Time.deltaTime;
-
         if (Input.GetMouseButtonDown(0))
         {            
             if(fireCounter <= 0)
@@ -177,7 +217,11 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     private void InitalizeAttackInfo()
     {
+        Cursor.lockState = CursorLockMode.Locked;   // Boolean 옵션 - Check Locked true, false
+        Cursor.visible = false;
         fireCounter = fireCoolTime;
+        currentGunIndex = 0;
+        SwitchGun();
     }
     // 들여 쓰기 핫 키 : 드래그 후 ctrl + K + D 
     private void Shoot()
@@ -189,17 +233,34 @@ public class PlayerController : MonoBehaviourPunCallbacks
             // 생성되는 위치가 오브젝트랑 겹쳐보이는 현상...
             GameObject bulletObject = Instantiate(bulletImpact, hit.point + (hit.normal * 0.002f), Quaternion.LookRotation(hit.normal, Vector3.up));
 
+            // 공격할 때 Muzzle Effect 발생
+            currentMuzzle.gameObject.SetActive(true);
             // 일정 시간 후에 인스턴스한 오브젝트를 파괴한다.
-            Destroy(bulletObject, 0.5f);
+            Destroy(bulletObject, bulletAliveTime);
         }
-
-        Debug.Log($"충돌한 오브젝트의 이름 {hit.collider.gameObject.name}");            // raycasthit에 의해 충돌한 지점에 collider가 있으면 반환해주는 코드
-        Debug.Log($"충돌한 지점의 Vector3을 반환하다 : {hit.point}");                   // Raycast에 의해서 감지된 위치를 반환
-        Debug.Log($"카메라와 충돌한 지점 사이의 거리를 반환 : {hit.distance}");          //  두 벡터의 차이
-        Debug.Log($"충돌한 오브젝트의 법선(normal)을 반환 :{hit.normal} ");             //  cam - 충돌한 오브젝트 평면의 벡터 외적.. normal        
 
         //  사격이 끝날 때, 사격 쿨타임을 리셋
         fireCounter = fireCoolTime;
+    }
+
+    private void SwitchGun()
+    {
+        // allGuns안에 있는 모든 오브젝트 비활성화.
+        foreach (var gun in allGuns)
+            gun.gameObject.SetActive(false);
+        // allGuns[currentGunIndex] 해당하는 오브젝트 활성화.
+        allGuns[currentGunIndex].gameObject.SetActive(true);
+
+        // Gun을 매개 변수로 사용하는 Gun 정보 동기화 함수
+        SetGunAttribute(allGuns[currentGunIndex]);
+    }
+
+    private void SetGunAttribute(Gun gun) // Class -> Data 
+    {
+        fireCoolTime = gun.fireCoolTime;
+        // Gun이 갖고 있는 속성을 Player Controller 변수와 연결 시키기
+        isAutomatic = gun.isAutomatic;
+        currentMuzzle = gun.MuzzleFlash.GetComponent<MuzzleFlash>();
     }
 
     #endregion

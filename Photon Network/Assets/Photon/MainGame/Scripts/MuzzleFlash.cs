@@ -4,36 +4,29 @@ using UnityEngine;
 
 public class MuzzleFlash : MonoBehaviour
 {
-    public float muzzleDisplayTime = 0.01666f;
+    public float muzzleCoolTime = 0.015f;
     private float muzzleCounter;
 
-    private void OnEnable()
+    private void OnEnable()   // 플레이어 의해 활성화 됬을 때
     {
-        Reset();
+        MuzzleReset();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        DeActivateMuzzle();
-    }
-
-    private void Reset()
-    {
-        muzzleCounter = muzzleDisplayTime;
-    }
-
-    private void DeActivateMuzzle()
-    {
-        if (gameObject.activeSelf)
+        // Muzzle 시간을 계산하는 로직
+        if (gameObject.activeSelf) // 활성화 되어 있을 때만 코드 실행
         {
             muzzleCounter -= Time.deltaTime;
 
-            if(muzzleCounter <= 0)
-            {
+            if (muzzleCounter <= 0)
                 gameObject.SetActive(false);
-            }
         }
     }
 
+    // Counter의 값을 Cooltime으로 초기화
+    private void MuzzleReset()
+    {
+        muzzleCounter = muzzleCoolTime;
+    }
 }
