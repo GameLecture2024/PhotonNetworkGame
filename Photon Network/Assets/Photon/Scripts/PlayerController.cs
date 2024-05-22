@@ -159,9 +159,17 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private float fireCounter;
     public bool isAutomatic;             // True일 때 연사 공격 가능. false일 때 단일 클릭으로 공격 가능
 
+    [Header("오버히트 시스템")]
+    public float maxHeat = 10f, heatCount, heatPerShot;    // 열기를 저장하는 변수
+    public float coolRate, overHeatCoolRate;  // 열기를 식히기 위한 변수 : overHeatcoolRate가 coolRate보다 커야 한다.
+    private bool overHeated = false;          // maxHeat에 도달하면 true, heatCount <= 0 다시 false
+
     public Gun[] allGuns;
     private int currentGunIndex = 0;
     private MuzzleFlash currentMuzzle;
+
+    public PlayerUI playerUI;
+    
 
     // 플레이어의 입력 -> 로직 -> (조건 - Physics.Raycast)실제 효과 처리
     // 공격했다는 사실
@@ -175,6 +183,34 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void CoolDownFunction()
     {
         fireCounter -= Time.deltaTime;
+        OverHeatedCoolDown();
+    }
+
+    // Update마다, 현재 HeatCount 계산해서, OverHeat인지 판별하는 함수
+    private void OverHeatedCoolDown()
+    {
+        // 현재 OverHeat 상태    
+        if (overHeated)
+        {
+            heatCount -= overHeatCoolRate * Time.deltaTime;
+
+            if (heatCount <= 0)
+            {
+                heatCount = 0;
+                overHeated = false;
+                // UI에서 OverHeat 표시를 해제
+                playerUI.overHeatTextObject.SetActive(false);
+            }
+        }
+        // !overHeated
+        else 
+        {
+            heatCount -= coolRate * Time.deltaTime;
+            if (heatCount <= 0)
+                heatCount = 0;
+        }
+
+        playerUI.currentWeaponSlider.value = heatCount;
     }
 
     private void SelectGun() // 마우스 휠 버튼 이용해서 1 ~ N 등록된 무기를 변경 기능 
@@ -191,6 +227,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
             // 총을 변경
             SwitchGun();
+            playerUI.SetWeaponSlot(currentGunIndex);
         }
         else if(Input.GetAxisRaw("Mouse ScrollWheel") < 0)
         {
@@ -203,15 +240,40 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
             // 총을 변경
             SwitchGun();
+            playerUI.SetWeaponSlot(currentGunIndex);
         }
+
+        // 키보드 숫자 입력(1,2,3)으로 무기 변경하기
+
+        // 키보드의 숫자를 입력 받는다. => 숫자를 변수로 바꾼다 => if , else if 반복문 변환
+        // 이 코드를 리뷰하고, 개선할 사항이 있으면 알려줘 (코드 리뷰)
+
+        // Todo : allGuns 배열을 데이터로 처리하는 기능이 구현 안됨
+        for(int i = 0; i < allGuns.Length; i++)
+        {
+            if (Input.GetKeyDown((i + 1).ToString()))
+            {
+                currentGunIndex = i;
+                SwitchGun();
+                playerUI.SetWeaponSlot(currentGunIndex);
+            }
+        }
+        // 입력 받은 숫자를 allGuns 배열의 Gun 데이터로 변환한다. 
+
     }
 
     private void InputAttack()
     {
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && !isAutomatic && !overHeated)  // 마우스를 눌렀을 때
         {            
             if(fireCounter <= 0)
              Shoot();
+        }
+
+        if (Input.GetMouseButton(0) && isAutomatic && !overHeated)  // Mouse Up되기 전 까지 계속.. 코드 블럭 실행
+        {
+            if (fireCounter <= 0)
+                Shoot();
         }
     }
 
@@ -241,6 +303,21 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
         //  사격이 끝날 때, 사격 쿨타임을 리셋
         fireCounter = fireCoolTime;
+        // OverHeat값을 계산 함수
+        ShootHeatSystem();
+    }
+
+    private void ShootHeatSystem()
+    {
+        heatCount = heatCount + heatPerShot;
+
+        if(heatCount >= maxHeat)
+        {
+            heatCount = maxHeat;
+            overHeated = true;
+            // 오버히트 ui 활성화
+            playerUI.overHeatTextObject.SetActive(true);
+        }       
     }
 
     private void SwitchGun()
@@ -261,6 +338,10 @@ public class PlayerController : MonoBehaviourPunCallbacks
         // Gun이 갖고 있는 속성을 Player Controller 변수와 연결 시키기
         isAutomatic = gun.isAutomatic;
         currentMuzzle = gun.MuzzleFlash.GetComponent<MuzzleFlash>();
+        heatPerShot = gun.heatPerShot;
+
+        // maxHeat Value가 결정되고 나서 작성
+        playerUI.currentWeaponSlider.maxValue = maxHeat;
     }
 
     #endregion
