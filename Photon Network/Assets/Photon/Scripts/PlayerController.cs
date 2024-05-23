@@ -49,8 +49,12 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (!photonView.IsMine)  // 내 플레이어가 아니면 카메라를 비활성화
         {
             cam.gameObject.SetActive(false);
+            playerUI.gameObject.SetActive(false);
+        }
+        else
+        {
             if (hiddenObject != null)
-                hiddenObject.layer = 0;
+                hiddenObject.gameObject.SetActive(false);
         }
     }
 
@@ -169,7 +173,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private MuzzleFlash currentMuzzle;
 
     public PlayerUI playerUI;
-    
+
 
     // 플레이어의 입력 -> 로직 -> (조건 - Physics.Raycast)실제 효과 처리
     // 공격했다는 사실
@@ -203,7 +207,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
             }
         }
         // !overHeated
-        else 
+        else
         {
             heatCount -= coolRate * Time.deltaTime;
             if (heatCount <= 0)
@@ -216,7 +220,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void SelectGun() // 마우스 휠 버튼 이용해서 1 ~ N 등록된 무기를 변경 기능 
                              // 1번 -> 1번 무기, 2번 -> 2번 무기, 3번 3번무기
     {
-        if(Input.GetAxisRaw("Mouse ScrollWheel") > 0)
+        if (Input.GetAxisRaw("Mouse ScrollWheel") > 0)
         {
             currentGunIndex++;
 
@@ -229,7 +233,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
             SwitchGun();
             playerUI.SetWeaponSlot(currentGunIndex);
         }
-        else if(Input.GetAxisRaw("Mouse ScrollWheel") < 0)
+        else if (Input.GetAxisRaw("Mouse ScrollWheel") < 0)
         {
             currentGunIndex--;
 
@@ -249,7 +253,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
         // 이 코드를 리뷰하고, 개선할 사항이 있으면 알려줘 (코드 리뷰)
 
         // Todo : allGuns 배열을 데이터로 처리하는 기능이 구현 안됨
-        for(int i = 0; i < allGuns.Length; i++)
+        for (int i = 0; i < allGuns.Length; i++)
         {
             if (Input.GetKeyDown((i + 1).ToString()))
             {
@@ -265,15 +269,15 @@ public class PlayerController : MonoBehaviourPunCallbacks
     private void InputAttack()
     {
         if (Input.GetMouseButtonDown(0) && !isAutomatic && !overHeated)  // 마우스를 눌렀을 때
-        {            
-            if(fireCounter <= 0)
-             Shoot();
+        {
+            if (fireCounter <= 0)
+                photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
         }
 
         if (Input.GetMouseButton(0) && isAutomatic && !overHeated)  // Mouse Up되기 전 까지 계속.. 코드 블럭 실행
         {
             if (fireCounter <= 0)
-                Shoot();
+                photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
         }
     }
 
@@ -286,38 +290,49 @@ public class PlayerController : MonoBehaviourPunCallbacks
         SwitchGun();
     }
     // 들여 쓰기 핫 키 : 드래그 후 ctrl + K + D 
-    private void Shoot()
+    [PunRPC]
+    private void ShootRPC()
     {
-        if(Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, shootDistance))
+        if (Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, shootDistance))
         {
+            // Tag를 이용한 조건문.. Player Tag 대상에게 Effect발생. 공격을 받았음. 함수를
+            if(hit.collider.CompareTag("Player") && !hit.collider.GetComponent<PhotonView>().IsMine)
+                TakeDamage(hit.collider.GetComponent<PhotonView>().name, 10);
+
             // Raycast가 Hit한 지점에 object가 생성된다.
             // 생성된 각도... 
             // 생성되는 위치가 오브젝트랑 겹쳐보이는 현상...
             GameObject bulletObject = Instantiate(bulletImpact, hit.point + (hit.normal * 0.002f), Quaternion.LookRotation(hit.normal, Vector3.up));
 
-            // 공격할 때 Muzzle Effect 발생
-            currentMuzzle.gameObject.SetActive(true);
             // 일정 시간 후에 인스턴스한 오브젝트를 파괴한다.
             Destroy(bulletObject, bulletAliveTime);
         }
 
+        // 공격할 때 Muzzle Effect 발생
+        currentMuzzle.gameObject.SetActive(true);
         //  사격이 끝날 때, 사격 쿨타임을 리셋
         fireCounter = fireCoolTime;
         // OverHeat값을 계산 함수
         ShootHeatSystem();
     }
 
+    private void TakeDamage(string name, int damage)
+    {
+        // 디버그로 받은 데미지 출력
+        Debug.Log($"데미지 입은 대상 : {name}이 {damage} 만큼 피해를 입음");
+    }
+
     private void ShootHeatSystem()
     {
         heatCount = heatCount + heatPerShot;
 
-        if(heatCount >= maxHeat)
+        if (heatCount >= maxHeat)
         {
             heatCount = maxHeat;
             overHeated = true;
             // 오버히트 ui 활성화
             playerUI.overHeatTextObject.SetActive(true);
-        }       
+        }
     }
 
     private void SwitchGun()
@@ -339,6 +354,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
         isAutomatic = gun.isAutomatic;
         currentMuzzle = gun.MuzzleFlash.GetComponent<MuzzleFlash>();
         heatPerShot = gun.heatPerShot;
+        shootDistance = gun.shootDistance;
 
         // maxHeat Value가 결정되고 나서 작성
         playerUI.currentWeaponSlider.maxValue = maxHeat;
@@ -355,5 +371,4 @@ public class PlayerController : MonoBehaviourPunCallbacks
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(cam.transform.position, cam.transform.forward * shootDistance);
     }
-
 }

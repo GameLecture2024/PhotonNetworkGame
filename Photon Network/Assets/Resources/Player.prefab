@@ -1258,10 +1258,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 1920, y: 1080}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0
   m_PhysicalUnit: 3
@@ -1635,7 +1635,7 @@ MonoBehaviour:
     m_Bits: 128
   groundCheckDistance: 1
   isGrounded: 0
-  hiddenObject: {fileID: 0}
+  hiddenObject: {fileID: 6326121158054255793}
   bulletImpact: {fileID: 4371993053793311834, guid: 831891e77c309ac4cb78d1e0274bb529, type: 3}
   bulletAliveTime: 2
   shootDistance: 10
@@ -2245,9 +2245,8 @@ MonoBehaviour:
   isAutomatic: 1
   fireCoolTime: 0.08
   MuzzleFlash: {fileID: 1531101303971772716}
-  gunType: 0
-  maxHeat: 0
   heatPerShot: 1
+  shootDistance: 10
 --- !u!1001 &1565748700682546537
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2340,9 +2339,8 @@ MonoBehaviour:
   isAutomatic: 1
   fireCoolTime: 0.25
   MuzzleFlash: {fileID: 5611933678817760095}
-  gunType: 0
-  maxHeat: 0
   heatPerShot: 2
+  shootDistance: 15
 --- !u!1001 &1873208651357013117
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2526,9 +2524,8 @@ MonoBehaviour:
   isAutomatic: 0
   fireCoolTime: 0.15
   MuzzleFlash: {fileID: 7279660825964394122}
-  gunType: 0
-  maxHeat: 0
   heatPerShot: 1.5
+  shootDistance: 7
 --- !u!1001 &4693030239892598286
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2751,5 +2748,10 @@ PrefabInstance:
 --- !u!4 &6323592201218591237 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4370289213991616, guid: 86fbce35c5d130147bc5b953dbf3059c, type: 3}
+  m_PrefabInstance: {fileID: 6327116963843334341}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &6326121158054255793 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1278689708014708, guid: 86fbce35c5d130147bc5b953dbf3059c, type: 3}
   m_PrefabInstance: {fileID: 6327116963843334341}
   m_PrefabAsset: {fileID: 0}
