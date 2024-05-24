@@ -13,6 +13,16 @@ public class PlayerUI : MonoBehaviour
     public WeaponSlot[] allWeaponSlots;
     private int currentWeaponIndex;
 
+    [Header("죽음 화면")]
+    public GameObject deathScreenObject;
+    public TMP_Text deathText;
+
+    public void ShowDeathMessage(string killer)
+    {
+        deathScreenObject.SetActive(true);
+        deathText.text = $"플레이어가 {killer}에게 죽었습니다.";
+    }
+
     public void SetWeaponSlot(int weaponIndex) // PlayerController에서 Index 넘겨 주고
     {
         currentWeaponIndex = weaponIndex;

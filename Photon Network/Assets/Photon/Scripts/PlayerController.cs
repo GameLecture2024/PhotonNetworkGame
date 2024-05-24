@@ -5,7 +5,7 @@ using UnityEngine;
 using Photon.Pun;
 using UnityEngine.EventSystems;
 
-public class PlayerController : MonoBehaviourPunCallbacks
+public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
 {
     [Header("Move")]
     [SerializeField] private float moveSpeed = 5f;    // 플레이어 이동 속도
@@ -33,6 +33,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
     PhotonView PV;                                   // PV객체를 이용하여 인스턴스된 오브젝트의 소유권 확인
     public GameObject hiddenObject;                  // 1인칭 시점에서 숨기고 싶은 오브젝트
 
+    public bool isPlayerDead;                       // 플레이어가 죽음 로직 관리
+
     private void Awake()
     {
         InitializeCompoments();
@@ -50,9 +52,13 @@ public class PlayerController : MonoBehaviourPunCallbacks
         {
             cam.gameObject.SetActive(false);
             playerUI.gameObject.SetActive(false);
+            gameObject.tag = "OtherPlayer";
         }
         else
         {
+            isPlayerDead = false;
+            playerUI.deathScreenObject.SetActive(false);
+
             if (hiddenObject != null)
                 hiddenObject.gameObject.SetActive(false);
         }
@@ -63,10 +69,17 @@ public class PlayerController : MonoBehaviourPunCallbacks
         InitalizeAttackInfo();
     }
 
+    private void OnEnable()    // Respawn 시에도 Player 데이터 초기화
+    {
+        PhotonSetup();
+    }
+
     // Update is called once per frame 
     // 컴퓨터 마다 Frame을 생성하는 성능이 다르기 때문에 Time.deltaTime 컴퓨터간의 같은 시간에 같은 횟수를 보장해주었다.
     void Update()
     {
+        if (photonView.IsMine && isPlayerDead) return;          // 플레이어의 소유권이 나이고, 플레이어가 죽음 상태일 때 코드를 멈춘다.
+
         if (photonView.IsMine)
         {
             CheckCollider();
@@ -76,6 +89,11 @@ public class PlayerController : MonoBehaviourPunCallbacks
             HandleView();
 
             PlayerAttack();
+        }
+        else // 다른 Client에게 받아온 위치 정보를 동기화한다. (큰 차이가 있을 경우 수정 -> 지연 보상)
+        {
+            //if ((transform.position - curPos).sqrMagnitude >= 100)
+            //    transform.position = curPos;
         }
     }
 
@@ -296,8 +314,14 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (Physics.Raycast(cam.transform.position, cam.transform.forward, out RaycastHit hit, shootDistance))
         {
             // Tag를 이용한 조건문.. Player Tag 대상에게 Effect발생. 공격을 받았음. 함수를
-            if(hit.collider.CompareTag("Player") && !hit.collider.GetComponent<PhotonView>().IsMine)
-                TakeDamage(hit.collider.GetComponent<PhotonView>().name, 10);
+            //if(hit.collider.CompareTag("Player") && !hit.collider.GetComponent<PhotonView>().IsMine)
+            //    TakeDamageRPC(hit.collider.GetComponent<PhotonView>().name, 10);
+
+            if (hit.collider.CompareTag("OtherPlayer"))
+            {
+                hit.collider.gameObject.GetPhotonView().RPC(nameof(TakeDamageRPC), RpcTarget.AllBuffered,
+                    photonView.Owner.NickName, 10);
+            }
 
             // Raycast가 Hit한 지점에 object가 생성된다.
             // 생성된 각도... 
@@ -316,10 +340,26 @@ public class PlayerController : MonoBehaviourPunCallbacks
         ShootHeatSystem();
     }
 
-    private void TakeDamage(string name, int damage)
+    [PunRPC]
+    private void TakeDamageRPC(string name, int damage)
     {
         // 디버그로 받은 데미지 출력
-        Debug.Log($"데미지 입은 대상 : {name}이 {damage} 만큼 피해를 입음");
+        if (photonView.IsMine)
+        {
+            Debug.Log($"데미지 입은 대상 : {name}이 {damage} 만큼 피해를 입음");
+
+            int HP = 10;
+            isPlayerDead = HP - damage <= 0;
+
+            if (isPlayerDead)
+            {
+                // 죽었을 때 UI 출력
+                playerUI.ShowDeathMessage(name);
+                // 플레이어 Respawn 기능 구현
+                SpawnPlayer.Instance.Die();
+            }
+        }
+
     }
 
     private void ShootHeatSystem()
@@ -370,5 +410,27 @@ public class PlayerController : MonoBehaviourPunCallbacks
         // 플레이어의 사격 범위를 파악하기 위한 Gizmo 함수
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(cam.transform.position, cam.transform.forward * shootDistance);
+    }
+
+    private Vector3 curPos; // 동기화를 위해 받아온 변수를 저장하는 곳
+    private float lag;
+
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+    {
+        // 보낼 정보를 isWriting 작성하면, 그 정보를 IsReading으로 읽어온다.
+        // 주의사항 : 반드시 보낼 변수의 순서를 똑같이 해줘야 한다.
+
+        if (stream.IsWriting)
+        {
+            stream.SendNext(transform.position);
+            stream.SendNext(rigidbody.velocity);
+        }
+        else if (stream.IsReading)
+        {
+            curPos = (Vector3)stream.ReceiveNext();
+            rigidbody.velocity = (Vector3)stream.ReceiveNext();
+        }
+
+        lag = Mathf.Abs((float)(PhotonNetwork.Time - info.timestamp));
     }
 }
