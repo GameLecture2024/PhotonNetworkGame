@@ -16,4 +16,6 @@ public class Gun : MonoBehaviour
     private float maxHeat;
     public float heatPerShot;
     public float shootDistance;
+
+    public int gunPower;               // 
 }
