@@ -60,11 +60,18 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
     public LeaderBoardPlayer instantLeaderBoard; // 해당하는 leaderBoadr 객체를 인스턴스화로 사용함.
     private List<LeaderBoardPlayer> leaderBoardPlayers = new List<LeaderBoardPlayer>();
 
+    [Header("제한 시간")]
+    public GameObject MatchTimePanel;
+    public TMP_Text timeText;
+    public float matchEndTime = 180f;
+    private float currentMatchTime;
+
     [Header("게임 엔딩")]
     public int killToWin = 1;
     public float waitForEnding = 3f;
     public GameState gameState = GameState.Waiting;
     public GameObject matchEndScene;
+    public Camera endCamera;
 
     public override void OnEnable()
     {
@@ -85,12 +92,23 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
             SceneManager.LoadScene(0);
         else
         {
-            NewPlayerSend(PhotonNetwork.NickName);
+            SetUpGameSetting();
         }
+    }
+
+    private void SetUpGameSetting()
+    {
+        NewPlayerSend(PhotonNetwork.NickName);
+        gameState = GameState.Playing;
+        matchEndScene.SetActive(false);
+        endCamera.gameObject.SetActive(false);
+        currentMatchTime = matchEndTime;
+        UpdateTimerDisplay();
     }
 
     void Update()
     {
+        // 리더 보드 상호작용 코드
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             if (LeaderBoardPanel.activeInHierarchy)
@@ -103,6 +121,25 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
                 ShowLeaderBoard();
             }
         }
+        // 제한 시간 표현
+        if(currentMatchTime > 0 && gameState == GameState.Playing)
+        {
+            currentMatchTime -= Time.deltaTime;
+
+            if(currentMatchTime <= 0)
+            {
+                currentMatchTime = 0;
+                gameState = GameState.Ending;
+
+                if (PhotonNetwork.IsMasterClient)
+                {
+                    ListPlayersSend(); // 모든 플레이어 gameState - Ending 통신을 받게 된다.
+                    StateCheck();
+                }
+            }
+        }
+        UpdateTimerDisplay();
+
     }
 
     public void OnEvent(EventData photonEvent)
@@ -327,6 +364,14 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
         return sortedList;
     }
 
+    public void UpdateTimerDisplay()
+    {
+        // TimeSpan-> 시간을 Hour, Minute, Second
+        var timeToDisplay = System.TimeSpan.FromSeconds(currentMatchTime);
+        timeText.text = timeToDisplay.Minutes.ToString("00") + " : " 
+            + timeToDisplay.Seconds.ToString("00");
+    }
+
     #region 매치 종료
     /// <summary>
     /// allPlayers의 플레이의 킬 수가 목표 킬수에 도달했는지 체크하는 함수
@@ -377,6 +422,7 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
         // 리더 보드를 보여주고, Mouse Cursor 상태를 움직일 수 있게 변화해준다.
         ShowLeaderBoard();
         matchEndScene.SetActive(true);
+        endCamera.gameObject.SetActive(true);
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -390,8 +436,9 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
     {
         yield return new WaitForSeconds(waitForEnding);
 
-        PhotonNetwork.AutomaticallySyncScene = false;
-        PhotonNetwork.LeaveRoom();
+        PhotonNetwork.AutomaticallySyncScene = true;
+        PhotonNetwork.LoadLevel(0);
+        //PhotonNetwork.LeaveRoom();
     }
 
     public override void OnLeftRoom()
@@ -400,5 +447,4 @@ public class MatchManager : MonoBehaviourPunCallbacks, IOnEventCallback
     }
 
     #endregion
-
 }

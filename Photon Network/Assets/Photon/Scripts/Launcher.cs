@@ -1,10 +1,10 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using TMPro;
 using UnityEngine.SceneManagement;
+using ExitGames.Client.Photon;
 
 
 public class Launcher : MonoBehaviourPunCallbacks
@@ -26,6 +26,7 @@ public class Launcher : MonoBehaviourPunCallbacks
     [Header("방 정보")]
     public GameObject roomPanel;
     public GameObject startButton;              // 방장만 보이도록 설정
+    public GameObject readyButton;
     public TMP_Text roomNameText;
     public TMP_Text playerNickNameText;
 
@@ -40,7 +41,7 @@ public class Launcher : MonoBehaviourPunCallbacks
     [Header("닉네임 생성 패널")]
     public GameObject nickNamePanel;                      // 닉네임 생성 오브젝트
     public TMP_InputField nickNameInput;                  // 닉네임 작성하는 공간
-    private bool hasSetNick = false;                      // 닉네임이 지정이 되어 있으면 반복을 피해주기 위한 Bool type 변수
+    private static bool hasSetNick = false;                      // 닉네임이 지정이 되어 있으면 반복을 피해주기 위한 Bool type 변수
     private const string PLAYERNAMEKEY = "playerName";    // PlayerPrefs 사용. 유니티 제공하는 간단한 데이터 저장 방식
 
     [Header("Photon RoomInfo")]
@@ -48,6 +49,10 @@ public class Launcher : MonoBehaviourPunCallbacks
     public RoomButtonInfo theRoomButtonInfo;
     private List<RoomButtonInfo> roomButtonList = new List<RoomButtonInfo>();
     private List<TMP_Text> allPlayerNames = new List<TMP_Text>();
+
+    [Header("Photon Play to Ready")]
+    private bool allPlayerReady = false;
+    private const string PlayerReadyProp = "PlayerReady"; // Player Custom Properties 해당 하는 키를 상수로 저장.
 
     [Header("Photon Chat")]
     public TMP_Text[] ChatText;
@@ -68,7 +73,21 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     private void Start()
     {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         PhotonNetwork.OfflineMode = false;
+
+        if(PhotonNetwork.NetworkClientState == ClientState.Joined)
+        {
+            if(PhotonNetwork.IsMasterClient)
+            {
+                foreach (Player player in PhotonNetwork.PlayerList)
+                    SetLocalPlayerReady(false);
+            }
+            // Room Join 함수 실행.
+            JoinRoomCallBack();
+        }
     }
 
     private void Update()
@@ -187,6 +206,11 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
+        JoinRoomCallBack();
+    }
+
+    private void JoinRoomCallBack()
+    {
         CloseMenus();
 
         // 방 생성 패널 활성화
@@ -199,9 +223,9 @@ public class Launcher : MonoBehaviourPunCallbacks
         ChatClear();
 
         if (PhotonNetwork.IsMasterClient) // 내가 방장이라면
-            startButton.SetActive(true);
-        else
             startButton.SetActive(false);
+
+        readyButton.SetActive(true);
     }
 
     public void JoinRoom(RoomInfo info)
@@ -325,7 +349,8 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     public void ButtonStartGame()
     {
-        SceneManager.LoadScene("Photon MainGame");
+        PhotonNetwork.LoadLevel("Photon MainGame");
+        //SceneManager.LoadScene("Photon MainGame");
     }
 
     public void ButtonJoinRandomRoom()
@@ -414,6 +439,88 @@ public class Launcher : MonoBehaviourPunCallbacks
         }
 
        // Text 공간이 가득 찼을 때.. 밑에서 부터 한 칸씩 밀어낸다.
+    }
+
+    #endregion
+
+    #region Player Ready Function
+    public void SetPlayerReadyState(bool isReady)
+    {
+        Hashtable ready = new Hashtable
+        {
+            {PlayerReadyProp, isReady}
+        };
+
+        PhotonNetwork.LocalPlayer.SetCustomProperties(ready);
+    }
+    // Scene이 시작될 때 모든 Player의 Ready State를 false 변경한다.
+    public void SetLocalPlayerReady(bool isReady)
+    {
+        SetPlayerReadyState(isReady);
+        CheckAllPlayerReady();
+    }
+
+    // 모든 플레이어가 준비가 되었는지 확인하는 함수
+    public void CheckAllPlayerReady()
+    {
+        foreach(Player player in PhotonNetwork.PlayerList)
+        {
+            if(!player.CustomProperties.ContainsKey(PlayerReadyProp) ||
+                  !(bool)player.CustomProperties[PlayerReadyProp])
+            {
+                if (PhotonNetwork.IsMasterClient)                 // 모든 사람 Ready -> 시작 버튼 없어
+                    startButton.gameObject.SetActive(false);
+                return;
+            }               
+        }
+
+        if (PhotonNetwork.IsMasterClient)
+        {
+            startButton.gameObject.SetActive(true);
+        }
+    }
+
+    public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        if(changedProps.ContainsKey(PlayerReadyProp)) 
+        {
+            CheckAllPlayerReady();
+        }
+    }
+
+    public bool IsLocalPlayerReady()
+    {
+        return PhotonNetwork.LocalPlayer.CustomProperties.ContainsKey(PlayerReadyProp) &&
+           (bool)PhotonNetwork.LocalPlayer.CustomProperties[PlayerReadyProp];
+    }
+
+    public void ButtonReadyClick()
+    {
+        bool isReady = IsLocalPlayerReady();
+        SetLocalPlayerReady(isReady);
+        UpdateReadyButton();
+    }
+
+    public void UpdateReadyButton()
+    {
+        bool isReady = IsLocalPlayerReady();
+
+        if (isReady)
+        {
+            // 플레이어가 준비되었음을 표현하는 기능
+            PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=yellow>" + 
+                PhotonNetwork.LocalPlayer.NickName + 
+                "준비가 되었습니다.</color>");
+        }
+        else
+        {
+            // 플레이어가 준비가 안되었음을 표현하는 기능
+            PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=Red>" +
+              PhotonNetwork.LocalPlayer.NickName +
+              "준비를 해제하였습니다.</color>");
+        }
+            
+                
     }
 
     #endregion
