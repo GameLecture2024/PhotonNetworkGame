@@ -83,7 +83,7 @@ public class Launcher : MonoBehaviourPunCallbacks
             if(PhotonNetwork.IsMasterClient)
             {
                 foreach (Player player in PhotonNetwork.PlayerList)
-                    SetLocalPlayerReady(false);
+                    SetPlayerReadyState(false);
             }
             // Room Join 함수 실행.
             JoinRoomCallBack();
@@ -448,16 +448,11 @@ public class Launcher : MonoBehaviourPunCallbacks
     {
         Hashtable ready = new Hashtable
         {
+            // 상수로 string 값을 이유 : "PlayerReadyToStart"
+
             {PlayerReadyProp, isReady}
         };
-
         PhotonNetwork.LocalPlayer.SetCustomProperties(ready);
-    }
-    // Scene이 시작될 때 모든 Player의 Ready State를 false 변경한다.
-    public void SetLocalPlayerReady(bool isReady)
-    {
-        SetPlayerReadyState(isReady);
-        CheckAllPlayerReady();
     }
 
     // 모든 플레이어가 준비가 되었는지 확인하는 함수
@@ -496,15 +491,14 @@ public class Launcher : MonoBehaviourPunCallbacks
 
     public void ButtonReadyClick()
     {
-        bool isReady = IsLocalPlayerReady();
-        SetLocalPlayerReady(isReady);
-        UpdateReadyButton();
+        bool isReady = !IsLocalPlayerReady();
+        SetPlayerReadyState(isReady);
+        CheckAllPlayerReady();
+        UpdateReadyButton(isReady);
     }
 
-    public void UpdateReadyButton()
+    public void UpdateReadyButton(bool isReady)
     {
-        bool isReady = IsLocalPlayerReady();
-
         if (isReady)
         {
             // 플레이어가 준비되었음을 표현하는 기능
@@ -515,7 +509,7 @@ public class Launcher : MonoBehaviourPunCallbacks
         else
         {
             // 플레이어가 준비가 안되었음을 표현하는 기능
-            PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=Red>" +
+            PV.RPC(nameof(ChatRPC), RpcTarget.All, "<color=red>" +
               PhotonNetwork.LocalPlayer.NickName +
               "준비를 해제하였습니다.</color>");
         }

@@ -20,6 +20,8 @@ public class PlayerUI : MonoBehaviour
     [Header("플레이어")]
     public TMP_Text playerHPText;          // Scene에서 HP_txt 연결해줄 것
 
+    public GameObject OptionsPanel;
+
     public void ShowDeathMessage(string killer)
     {
         deathScreenObject.SetActive(true);
@@ -57,6 +59,35 @@ public class PlayerUI : MonoBehaviour
         Color color = text.color;
         color.a = alphaValue;
         text.color = color;
+    }
+
+    public void ShowOptions()
+    {
+        // 플레이어의 인풋 받아오기 => 플레이어가 Esc키를 눌렀을 때 
+        // 하이어라키 창에서 활성화 되어있으면. 비활성화한다 => 하이어라키창에 오브젝트 활성화되어 있으면 해당 오브젝트를 비활성화하고
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (OptionsPanel.activeInHierarchy)
+            {
+                OptionsPanel.SetActive(false);
+            }
+            else
+            {
+                OptionsPanel.SetActive(true);
+            }
+        }
+        // 마우스의 커서를 숨기고, 커서 상태를 잠금 상태로 변경하고, 만약에 비활성화 상태라면 반대 상태로 변경해주는 코드를 알려줘
+        // Cursor.Visible / Cursor.state 
+        if (OptionsPanel.activeInHierarchy && !Cursor.visible)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        //else if(!OptionsPanel.activeInHierarchy)
+        //{
+        //    Cursor.lockState = CursorLockMode.Locked;
+        //    Cursor.visible = false;
+        //}
     }
 
 }

@@ -17,5 +17,7 @@ public class Gun : MonoBehaviour
     public float heatPerShot;
     public float shootDistance;
 
-    public int gunPower;               // 
+    public int gunPower;               //
+
+    public AudioSource shotSound;
 }

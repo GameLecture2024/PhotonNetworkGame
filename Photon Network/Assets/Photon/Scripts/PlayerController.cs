@@ -99,6 +99,8 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
             HandleView();
 
             PlayerAttack();
+            playerUI.ShowOptions(); // Esc(Escape)키를 눌렀을 때 Option 판넬이 활성화 되고 비활성화 되도록 만든다.
+
         }
         else // 다른 Client에게 받아온 위치 정보를 동기화한다. (큰 차이가 있을 경우 수정 -> 지연 보상)
         {
@@ -308,12 +310,16 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
         {
             if (fireCounter <= 0)
                 photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
+
+            allGuns[currentGunIndex].shotSound.Play();
         }
 
         if (Input.GetMouseButton(0) && isAutomatic && !overHeated)  // Mouse Up되기 전 까지 계속.. 코드 블럭 실행
         {
             if (fireCounter <= 0)
                 photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
+
+            allGuns[currentGunIndex].shotSound.Play();
         }
     }
 
@@ -350,6 +356,7 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
             Destroy(bulletObject, bulletAliveTime);
         }
 
+        allGuns[currentGunIndex].shotSound.Play();
         // 공격할 때 Muzzle Effect 발생
         currentMuzzle.gameObject.SetActive(true);
         //  사격이 끝날 때, 사격 쿨타임을 리셋
