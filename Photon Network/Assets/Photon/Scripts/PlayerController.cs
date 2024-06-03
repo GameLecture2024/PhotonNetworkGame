@@ -40,6 +40,9 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
     public bool isPlayerDead;                       // 플레이어가 죽음 로직 관리
     private Animator animator;
 
+    public GameObject[] allSkins;                   // 캐릭터의 외형을 변경
+    private int currentSkinIndex;
+
     private void Awake()
     {
         InitializeCompoments();
@@ -54,19 +57,28 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
 
     private void PhotonSetup()
     {
+        currentSkinIndex = UnityEngine.Random.RandomRange(0, allSkins.Length);
+        foreach(var skin in allSkins)
+        {
+            skin.SetActive(false);
+        }
+        hiddenObject = allSkins[currentSkinIndex];  // 게임에 적용될 캐릭터
+
         if (!photonView.IsMine)  // 내 플레이어가 아니면 카메라를 비활성화
         {
             cam.gameObject.SetActive(false);
             playerUI.gameObject.SetActive(false);
             gameObject.tag = "OtherPlayer";
+            hiddenObject.SetActive(true);
         }
         else
         {
             isPlayerDead = false;
             playerUI.deathScreenObject.SetActive(false);
 
-            if (hiddenObject != null)
-                hiddenObject.gameObject.SetActive(false);
+            // foreach allSkins false코드에서 처리됨.
+            //if (hiddenObject != null)
+            //    hiddenObject.gameObject.SetActive(false);
 
             currentHP = maxHP;
             playerUI.playerHPText.text = $"{currentHP} / {maxHP}";
@@ -208,6 +220,9 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
     public Gun[] allGuns;
     private int currentGunIndex = 0;
     private int currentGunPower;
+    private int currentGunFOV;
+    [SerializeField] int defaultFOV = 60;
+    [SerializeField] float fovChangeSpeed = 5f;
     private MuzzleFlash currentMuzzle;
 
     public PlayerUI playerUI;
@@ -220,6 +235,7 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
         CoolDownFunction();
         SelectGun();
         InputAttack();
+        ZoomIn();
     }
 
     private void CoolDownFunction()
@@ -309,17 +325,33 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
         if (Input.GetMouseButtonDown(0) && !isAutomatic && !overHeated)  // 마우스를 눌렀을 때
         {
             if (fireCounter <= 0)
+            {
                 photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
-
-            allGuns[currentGunIndex].shotSound.Play();
+                allGuns[currentGunIndex].shotSound.Stop();
+                allGuns[currentGunIndex].shotSound.Play();
+            }
         }
 
         if (Input.GetMouseButton(0) && isAutomatic && !overHeated)  // Mouse Up되기 전 까지 계속.. 코드 블럭 실행
         {
             if (fireCounter <= 0)
+            {
                 photonView.RPC(nameof(ShootRPC), RpcTarget.AllBuffered);
+                allGuns[currentGunIndex].shotSound.Stop();
+                allGuns[currentGunIndex].shotSound.Play();
+            }
+        }
+    }
 
-            allGuns[currentGunIndex].shotSound.Play();
+    private void ZoomIn()
+    {
+        if (Input.GetMouseButton(1))
+        {
+             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, currentGunFOV, Time.deltaTime * fovChangeSpeed);
+        }
+        else
+        {
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, defaultFOV, Time.deltaTime * fovChangeSpeed);
         }
     }
 
@@ -431,7 +463,7 @@ public class PlayerController : MonoBehaviourPunCallbacks, IPunObservable
         heatPerShot = gun.heatPerShot;
         shootDistance = gun.shootDistance;
         currentGunPower = gun.gunPower;
-
+        currentGunFOV = gun.gunFOV;
         // maxHeat Value가 결정되고 나서 작성
         playerUI.currentWeaponSlider.maxValue = maxHeat;
     }

@@ -65,7 +65,7 @@ public class PlayerUI : MonoBehaviour
     {
         // 플레이어의 인풋 받아오기 => 플레이어가 Esc키를 눌렀을 때 
         // 하이어라키 창에서 활성화 되어있으면. 비활성화한다 => 하이어라키창에 오브젝트 활성화되어 있으면 해당 오브젝트를 비활성화하고
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (Input.GetKeyDown(KeyCode.U))
         {
             if (OptionsPanel.activeInHierarchy)
             {
@@ -83,11 +83,11 @@ public class PlayerUI : MonoBehaviour
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
-        //else if(!OptionsPanel.activeInHierarchy)
-        //{
-        //    Cursor.lockState = CursorLockMode.Locked;
-        //    Cursor.visible = false;
-        //}
+        else if(!OptionsPanel.activeInHierarchy && Cursor.visible)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
     }
 
 }
